@@ -1,6 +1,8 @@
 # File: tibet_shares_mappings.csv
 # Title: tibet_shares_mappings
 # Units: NA
+# Column types: cccccc
+# ----------
 xz.sector,xz.fuel,EBProcess,EBMaterial,sector,fuel
 Residential Urban,electricity,Residential consumption - Urban,Electricity,resid_urban,electricity
 Residential Urban,traditional biomass,Residential consumption - Urban,,resid_urban,traditional biomass

@@ -1,6 +1,8 @@
 # File: Tibet_share.csv
 # Title: Tibet_share
 # Units: %
+# Column types: ccn
+# ----------
 xz.sector,xz.fuel,share
 Residential Urban,electricity,0.055691412
 Residential Urban,traditional biomass,0

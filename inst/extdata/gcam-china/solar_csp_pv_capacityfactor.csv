@@ -2,7 +2,9 @@
 # Title: Capacity factor for centralized PV and CSP by province
 # Units: Unitless
 # Description: Capacity factor for centralized PV and CSP by province
-# Source: Energy Foudation Training: http://www.efchina.org/Attachments/Report/reports-efchina-20110128-en/Methodoloy%20for%20Supply%20Curve%20Development_BV_EN.pdf,,
+# Source: Energy Foudation Training: http://www.efchina.org/Attachments/Report/reports-efchina-20110128-en/Methodoloy%20for%20Supply%20Curve%20Development_BV_EN.pdf
+# Column types: cnn
+# ----------
 province.name,Centralized.PV,CSP
 Beijing,0.16,0.26
 Tianjin,0.16,0.26

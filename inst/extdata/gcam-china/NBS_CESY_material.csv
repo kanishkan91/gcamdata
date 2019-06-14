@@ -1,6 +1,8 @@
 # File: NBS_CESY_material.csv
 # Title: Mapping from China energy statistical yearbook energy balance Material to intermediate fuel names
 # Units: NA
+# Column types: cc
+# ----------
 EBMaterial,fuel
 Bitumen Asphalt,
 Blast Furnace Gas,coal
