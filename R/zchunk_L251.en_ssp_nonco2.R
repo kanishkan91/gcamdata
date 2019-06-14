@@ -14,7 +14,7 @@
 #' Then, add columns that have regional SO2 emission species.
 #' A GDP control of regional non-CO2 emissions in all regions is also created.
 #' @importFrom assertthat assert_that
-#' @importFrom dplyr filter mutate select
+#' @importFrom dplyr filter group_by left_join mutate select semi_join
 #' @importFrom tidyr gather spread
 #' @author CDL May 2017
 module_emissions_L251.en_ssp_nonco2 <- function(command, ...) {
@@ -123,7 +123,7 @@ module_emissions_L251.en_ssp_nonco2 <- function(command, ...) {
       select(-emiss.coeff) %>%
       filter(year == min(year)) %>%
       mutate(year = emissions.GHG_CONTROL_READIN_YEAR,
-             ctrl.name ="GDP_control") ->
+             ctrl.name = "GDP_control") ->
       L251.ctrl.delete
 
     # This section adds emissions controls for future years of vintaged electricity technologies for SSP emission factors.

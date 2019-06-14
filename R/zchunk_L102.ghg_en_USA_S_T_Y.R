@@ -10,7 +10,7 @@
 #' original data system was \code{L102.ghg_en_USA_S_T_Y.R} (emissions level1).
 #' @details Divides CH4 and N2O emissions from EPA GHG inventory by GCAM energy sector activity to get emissions factors for a single historical year 2005 in the US.
 #' @importFrom assertthat assert_that
-#' @importFrom dplyr filter mutate select
+#' @importFrom dplyr arrange filter if_else group_by left_join mutate select summarize summarize_if
 #' @importFrom tidyr gather spread
 #' @author HCM April 2017
 module_emissions_L102.ghg_en_USA_S_T_Y <- function(command, ...) {
@@ -27,8 +27,8 @@ module_emissions_L102.ghg_en_USA_S_T_Y <- function(command, ...) {
   } else if(command == driver.MAKE) {
 
     year <- energy <- sector <- fuel <- technology <- GCAM_region_ID <- CO2 <-
-        . <- EPA_agg_sector <- EPA_agg_sector <- EPA_agg_fuel_ghg <- CH4 <-
-        N2O <- ch4_em_factor <- n2o_em_factor <- NULL # silence package check.
+      . <- EPA_agg_sector <- EPA_agg_sector <- EPA_agg_fuel_ghg <- CH4 <-
+      N2O <- ch4_em_factor <- n2o_em_factor <- NULL # silence package check.
 
     all_data <- list(...)[[1]]
 
@@ -47,49 +47,38 @@ module_emissions_L102.ghg_en_USA_S_T_Y <- function(command, ...) {
     EPA_FCCC_GHG_2005 %>% # start from EPA GHG
       left_join(EPA_ghg_tech, by = "Source_Category") %>% # define category
       select(-CO2) %>% # non-CO2 only
+      replace_na(list(CH4 = 0, N2O = 0)) %>%
+      # Primary fossil production (coal, oil, gas) emissions does not exist in the EPA
+      # inventory.  We will leave a place holder for now which will get scaled
+      # to match EDGAR downstream.
+      mutate(CH4 = if_else(sector %in% c("coal", "oil_gas"), 1, CH4),
+             N2O = if_else(sector %in% c("coal", "oil_gas"), 1, N2O)) %>%
       group_by(sector, fuel) %>%
-      summarize_if(is.numeric, sum, na.rm = FALSE) %>% # sum by sector and fuel
+      summarize(CH4 = sum(CH4) * CONV_GG_TG,
+                N2O = sum(N2O) * CONV_GG_TG) %>% # sum by sector and fuel and change units
       filter(!is.na(sector), !is.na(fuel)) %>% # delete NA sectors and fuel
-      mutate_all(funs(replace(., is.na(.), 1))) %>% # placeholder values for existing sectors that has no value.
-      # NOTE: THIS IS A HACK. EPA DOESN'T HAVE EMISSIONS IN SOME SECTORS, WHEN EDGAR DOES. THIS WILL MAKE EMISSIONS PROPORTIONAL TO FUEL USE. NOT SURE IF THIS IS THE BEST STRATEGY.
-      mutate_if(is.numeric, funs(. * CONV_GG_TG)) %>% # Convert to Tg
       ungroup() ->
       L102.ghg_tg_USA_en_Sepa_F_2005 # GHG balance in 2005
 
-    if(OLD_DATA_SYSTEM_BEHAVIOR) {
-      # incorrect fuel name for transport from input mapping.
-      # organize energy balances in USA 2005
-      L101.in_EJ_R_en_Si_F_Yh %>% # start from energy balances
-        filter(GCAM_region_ID == gcam.USA_CODE, year == 2005) %>% # 2005 USA data only
-        select(-GCAM_region_ID, -year) %>%
-        left_join_keep_first_only(select(GCAM_sector_tech, sector, fuel, EPA_agg_sector, EPA_agg_fuel_ghg),
-                                  by = c("sector", "fuel")) %>% # assign aggregate sector and fuel names
-        group_by(EPA_agg_sector, EPA_agg_fuel_ghg) %>%
-        summarize_if(is.numeric, sum) -> # sum by aggregate sector and fuel
-        L102.in_EJ_USA_en_Sepa_F_2005 # energy balance in 2005
-
-    } else {
-      # foolproof solution is to use both fuel and technology for categorization.
-      # organize energy balances in USA 2005
-      L101.in_EJ_R_en_Si_F_Yh %>% # start from energy balances
-        filter(GCAM_region_ID == gcam.USA_CODE, year == 2005) %>% # 2005 USA data only
-        select(-GCAM_region_ID, -year) %>%
-        left_join(select(GCAM_sector_tech, sector, fuel, technology, EPA_agg_sector, EPA_agg_fuel_ghg),
-                  by = c("sector", "fuel", "technology")) %>% # assign aggregate sector and fuel names
-        group_by(EPA_agg_sector, EPA_agg_fuel_ghg) %>%
-        summarize_if(is.numeric, sum) -> # sum by aggregate sector and fuel
-        L102.in_EJ_USA_en_Sepa_F_2005 # energy balance in 2005
-    }
+    # organize energy balances in USA 2005
+    L101.in_EJ_R_en_Si_F_Yh %>% # start from energy balances
+      filter(GCAM_region_ID == gcam.USA_CODE, year == 2005) %>% # 2005 USA data only
+      select(-GCAM_region_ID, -year) %>%
+      left_join(select(GCAM_sector_tech, sector, fuel, technology, EPA_agg_sector, EPA_agg_fuel_ghg),
+                by = c("sector", "fuel", "technology")) %>% # assign aggregate sector and fuel names
+      group_by(EPA_agg_sector, EPA_agg_fuel_ghg) %>%
+      summarize_if(is.numeric, sum) -> # sum by aggregate sector and fuel
+      L102.in_EJ_USA_en_Sepa_F_2005 # energy balance in 2005
 
     # combine emissions and energy to get emission factors
     L102.ghg_tg_USA_en_Sepa_F_2005 %>%
       left_join(L102.in_EJ_USA_en_Sepa_F_2005, by = c("sector" = "EPA_agg_sector", "fuel" = "EPA_agg_fuel_ghg")) %>% # energy data and emission data joined
-      mutate(ch4_em_factor = CH4 / energy) %>% # emission factor calculated
-      mutate(n2o_em_factor = N2O / energy) %>% # emission factor calculated
+      mutate(ch4_em_factor = CH4 / energy, # emission factor calculated
+             n2o_em_factor = N2O / energy) %>% # emission factor calculated
       select(-CH4, -N2O, -energy) %>% # delete orignal data
       arrange(fuel) %>%
-      mutate(ch4_em_factor = if_else(is.na(ch4_em_factor) | is.infinite(ch4_em_factor), 0, ch4_em_factor)) %>% # set NA and INF to zero
-      mutate(n2o_em_factor = if_else(is.na(n2o_em_factor) | is.infinite(n2o_em_factor), 0, n2o_em_factor)) -> # set NA and INF to zero
+      mutate(ch4_em_factor = if_else(is.na(ch4_em_factor) | is.infinite(ch4_em_factor), 0, ch4_em_factor), # set NA and INF to zero
+             n2o_em_factor = if_else(is.na(n2o_em_factor) | is.infinite(n2o_em_factor), 0, n2o_em_factor)) -> # set NA and INF to zero
       L102.ghg_tgej_USA_en_Sepa_F_2005
 
     # Produce outputs

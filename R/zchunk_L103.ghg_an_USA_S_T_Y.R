@@ -12,7 +12,7 @@
 #' @details Calculated methane emissions factors for animal production by GCAM technology (animal type) from EPA
 #' emissions estimates and FAO production data for the US in 2005.
 #' @importFrom assertthat assert_that
-#' @importFrom dplyr filter mutate select
+#' @importFrom dplyr filter funs group_by left_join mutate select summarise summarise_if
 #' @importFrom tidyr gather spread
 #' @author RH April 2017
 module_emissions_L103.ghg_an_USA_S_T_Y <- function(command, ...) {
@@ -44,29 +44,18 @@ module_emissions_L103.ghg_an_USA_S_T_Y <- function(command, ...) {
     # EPA data contains estimates for aggregate and disaggregate sectors. There should be NAs when
     # mapping to GCAM sector and fuel to avoid double counting those totals.
 
-    if(OLD_DATA_SYSTEM_BEHAVIOR) {
-    # Old system yields an emissions estimate of 0 for poultry because it has NA values.
+    # Note summarize ignoring NA to ensure correct poultry emissions estimate,
+    # methane emissions for poultry are relatively small
+    # compared to other animals, but non-zero
     EPA_FCCC_AG_2005 %>%
       left_join(EPA_ghg_tech, by = "Source_Category") %>%
       group_by(sector, fuel) %>%
-      summarize_if(is.numeric , sum) %>%
-      filter( !is.na(sector), !is.na(fuel)) %>%
-      mutate_all(funs(replace(., is.na(.), 0))) %>%
-      mutate_if(is.numeric, funs(. * CONV_GG_TG)) ->
-        L103.ghg_tg_USA_an_Sepa_F_2005
-
-    } else {
-      # Corrected poltry emissions estimate, methane emissions for poultry are relatively small
-      # compared to other animals, but non-zero
-    EPA_FCCC_AG_2005 %>%
-        left_join(EPA_ghg_tech, by = "Source_Category") %>%
-        group_by(sector, fuel) %>%
-        summarize_if(is.numeric, sum, na.rm = TRUE) %>%
-        filter(!is.na(sector), !is.na(fuel)) %>%
-        mutate_all( funs( replace(., is.na(.), 0))) %>%
-        mutate_if(is.numeric, funs(. * CONV_GG_TG)) ->
-        L103.ghg_tg_USA_an_Sepa_F_2005
-    }
+      summarise_if(is.numeric, sum, na.rm = TRUE) %>%
+      filter(!is.na(sector), !is.na(fuel)) %>%
+      ungroup() %>%
+      dplyr::mutate_all( funs( replace(., is.na(.), 0))) %>%
+      dplyr::mutate_if(is.numeric, funs(. * CONV_GG_TG)) ->
+      L103.ghg_tg_USA_an_Sepa_F_2005
 
     # Map FAO production to EPA sectors and aggregate
     # Select region - US and year - 2005

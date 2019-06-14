@@ -11,7 +11,7 @@
 #' @details Create Marginal abatement cost curves, in percent reduction by 1990 USD costs from EPA cost curves.
 #' Choose between 2020 or 2030 data in constants file - emissions.EPA_MACC_YEAR.
 #' @importFrom assertthat assert_that
-#' @importFrom dplyr filter mutate select
+#' @importFrom dplyr filter group_by left_join mutate select vars summarize_at
 #' @importFrom tidyr gather spread
 #' @author RMH May 2017
 
@@ -45,10 +45,10 @@ module_emissions_L152.MACC <- function(command, ...) {
 
     # Make processes and region names consistent
     EPA_MACC_baselines_MtCO2e <- EPA_MACC_baselines_MtCO2e_in %>%
-      mutate(Process = sub("\\&", "and", Process)) %>%
-      mutate(EPA_region = sub("\\&", "and", EPA_region)) %>%
-      mutate(EPA_region = sub("World", "Global", EPA_region)) %>%
-      mutate(EPA_region = sub("Global Total", "Global", EPA_region))
+      mutate(Process = sub("\\&", "and", Process),
+             EPA_region = sub("\\&", "and", EPA_region),
+             EPA_region = sub("World", "Global", EPA_region),
+             EPA_region = sub("Global Total", "Global", EPA_region))
 
     EPA_MACC_MtCO2e <- EPA_MACC_MtCO2e %>%
       mutate(Process = sub("\\&", "and", Process))
@@ -57,16 +57,16 @@ module_emissions_L152.MACC <- function(command, ...) {
     # Convert from 2010$/tCO2e to 1990$/tC
     L152.EPA_MACC_MtCO2e <- EPA_MACC_MtCO2e %>%
       gather(cost_2010USD_tCO2e, reduction_MtCO2e, -Sector, -Process, -EPA_region, -EPA_region_code) %>%
-      mutate(cost_2010USD_tCO2e = as.numeric(cost_2010USD_tCO2e)) %>%
-      mutate(cost_1990USD_tCe = round(cost_2010USD_tCO2e * emissions.CONV_C_CO2 * gdp_deflator(1990, base_year = 2010), 0)) %>%
+      mutate(cost_2010USD_tCO2e = as.numeric(cost_2010USD_tCO2e),
+             cost_1990USD_tCe = round(cost_2010USD_tCO2e * emissions.CONV_C_CO2 * gdp_deflator(1990, base_year = 2010), 0)) %>%
       select(-cost_2010USD_tCO2e)
 
     # For in abatement and basebline data:
     # Combine aluminum and magnesium processes: define function, then call in both instances
     combine_Al_Mg <- function(x) {
       x %>%
-        mutate(Process = sub("Primary Aluminum Production", "Aluminum and Magnesium Production", Process)) %>%
-        mutate(Process = sub("Magnesium Manufacturing", "Aluminum and Magnesium Production", Process))
+        mutate(Process = sub("Primary Aluminum Production", "Aluminum and Magnesium Production", Process),
+               Process = sub("Magnesium Manufacturing", "Aluminum and Magnesium Production", Process))
      }
 
     # Abatement data
@@ -104,7 +104,7 @@ module_emissions_L152.MACC <- function(command, ...) {
     L152.MAC_pct_R_S_Proc_EPA <- L152.EPA_MACC_percent_MtCO2e %>%
       select(Sector, Process, EPA_region) %>%
       unique %>%
-      repeat_add_columns(tibble(cost_1990USD_tCe = emissions.MAC_TAXES)) %>%
+      repeat_add_columns(tibble(cost_1990USD_tCe = round(emissions.MAC_TAXES * emissions.CONV_C_CO2 * gdp_deflator(1990, base_year = 2010), 0))) %>%
       left_join_error_no_match(L152.EPA_MACC_percent_MtCO2e,
                                by = c("Sector", "Process", "EPA_region", "cost_1990USD_tCe")) %>%
       spread(cost_1990USD_tCe, reduction_pct)

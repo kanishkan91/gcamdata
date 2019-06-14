@@ -10,7 +10,7 @@
 #' original data system was \code{L203.water.mapping.R} (water level2).
 #' @details Generates water mapping sector input files to group demands by sectors.
 #' @importFrom assertthat assert_that
-#' @importFrom dplyr filter mutate select
+#' @importFrom dplyr arrange bind_rows filter if_else left_join mutate select
 #' @importFrom tidyr gather spread
 #' @author ST August 2017
 module_water_L203.water.mapping <- function(command, ...) {
@@ -69,7 +69,7 @@ module_water_L203.water.mapping <- function(command, ...) {
       mutate(coefficient = 1,
              subsector = supplysector,
              technology = supplysector,
-             logit.year.fillout = first(BASE_YEARS)) %>%
+             logit.year.fillout = first(MODEL_BASE_YEARS)) %>%
       arrange(GCAM_region_ID) %>%
       left_join(select(L165.ag_IrrEff_R, -field.eff), by = "GCAM_region_ID") %>%
       # ^^ non-restrictive join required (NA values generated for region 30, Taiwan)

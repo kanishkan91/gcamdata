@@ -10,7 +10,7 @@
 #' original data system was \code{LA144.Commercial.R} (gcam-usa level1).
 #' @details Calculates commercial floorspace by state and energy consumption by state/fuel/end use
 #' @importFrom assertthat assert_that
-#' @importFrom dplyr filter mutate select
+#' @importFrom dplyr bind_rows distinct filter if_else group_by left_join mutate select summarise transmute
 #' @importFrom tidyr gather spread
 #' @author RLH September 2017
 module_gcam.usa_LA144.Commercial <- function(command, ...) {
@@ -48,14 +48,6 @@ module_gcam.usa_LA144.Commercial <- function(command, ...) {
     states_subregions <- get_data(all_data, "gcam-usa/states_subregions") %>%
       select(subregion4, subregion9, REGION, DIVISION, state) %>%
       distinct()
-    # Because there was a mistake in previous states_subregions file, there are some values that will require
-    # a data frame identical to the mistaken one
-    if(OLD_DATA_SYSTEM_BEHAVIOR) {
-      states_subregions_region4calc <- states_subregions %>%
-        mutate(subregion4 = if_else(state == "WV", "Midwest", subregion4))
-    } else {
-      states_subregions_region4calc <- states_subregions_region4calc
-    }
 
     Census_pop_hist <- get_data(all_data, "gcam-usa/Census_pop_hist") %>%
       gather_years
@@ -111,7 +103,7 @@ module_gcam.usa_LA144.Commercial <- function(command, ...) {
 
     # Add subregions to census population for aggregating
     L144.Census_pop_hist <- Census_pop_hist %>%
-      left_join_error_no_match(states_subregions_region4calc, by = "state") %>%
+      left_join_error_no_match(states_subregions, by = "state") %>%
       filter(year %in% HISTORICAL_YEARS)
 
     # Aggregate population to subregion4
@@ -257,7 +249,7 @@ module_gcam.usa_LA144.Commercial <- function(command, ...) {
           df %>%
             select(cols_to_keep, ADJWT, subregion9, year) %>%
             # All cols_to_keep have BTU in name
-            gather(variable, value, contains("BTU")) %>%
+            gather(variable, value, dplyr::contains("BTU")) %>%
             group_by(subregion9, year, variable) %>%
             # Sum by census division, multiplying by sampling weights
             summarise(value = sum(value * ADJWT * CONV_KBTU_EJ)) %>%

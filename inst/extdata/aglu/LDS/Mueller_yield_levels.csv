@@ -1,9 +1,12 @@
 # File: Mueller_yield_levels.csv
 # Title: Attainable yield levels by country and basin
 # Units: tons/ha
+# Author: moirai
 # Description: Min, average, and max refer to the respective yields observed in grid cells within country, basin, and crop; count is the number of grid cells with harvested area for the given crop, country, and basin.
-# Source: Mueller, N. D., Gerber, J. S., Johnston, M., Ray, D. K., Ramankutty, N. and Foley, J. A.: Closing yield gaps through nutrient and water management, Nature, 490(7419), 254–257, doi:10.1038/nature11420, 2012. Geospatial data processed by Yannick Le Page.
-# https://github.com/JGCRI/lds
+# Original source: Mueller, N. D., Gerber, J. S., Johnston, M., Ray, D. K., Ramankutty, N. and Foley, J. A.: Closing yield gaps through nutrient and water management, Nature, 490(7419), 254?<80><93>257, doi:10.1038/nature11420, 2012. Geospatial data processed by Yannick Le Page.
+# Source: https://github.com/JGCRI/moirai
+# Column types: ciccnnni 
+# ----------
 Country,Basin,crop,yield_level,min,average,max,Count
 abw,143,maize,_02ndpercentileyield,NA,NA,NA,NA
 afg,52,maize,_02ndpercentileyield,0.13,1.58,3.17,771

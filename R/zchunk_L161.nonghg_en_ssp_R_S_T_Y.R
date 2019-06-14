@@ -11,7 +11,7 @@
 #' @details Scales future GAINS, Greenhouse Gas - Air Pollution Interactions and Synergies model, non-GHG emissions factors to L111/L114 base year emissions factors,
 #' then applies future emissions factors to some GCAM years based on SSP-specific rules.
 #' @importFrom assertthat assert_that
-#' @importFrom dplyr filter mutate select
+#' @importFrom dplyr bind_rows distinct filter if_else group_by lag left_join mutate select summarise
 #' @importFrom tidyr gather spread
 #' @author RLH July 2017
 module_emissions_L161.nonghg_en_ssp_R_S_T_Y <- function(command, ...) {
@@ -145,7 +145,7 @@ module_emissions_L161.nonghg_en_ssp_R_S_T_Y <- function(command, ...) {
              scenario, year, emfact, region_grouping)
 
     # Create list of countries with strong regulation based on elec_coal SO2 emissions factor
-    coal_so2 <- tibble(GCAM_region_ID = seq(1, 32)) %>%
+    coal_so2 <- tibble(GCAM_region_ID = A_regions$GCAM_region_ID) %>%
       left_join(
         emfact_scaled %>%
           filter(year == emissions.GAINS_YEARS[length(emissions.GAINS_YEARS)],
@@ -153,7 +153,8 @@ module_emissions_L161.nonghg_en_ssp_R_S_T_Y <- function(command, ...) {
         by = "GCAM_region_ID") %>%
       mutate(policy = if_else(emfact <= emissions.COAL_SO2_THRESHOLD, "strong_reg", "weak_reg"),
              policy = replace(policy, region_grouping == "low", "low")) %>%
-      replace_na(list(policy = "low")) %>%
+      # If region is missing a value, assume it is a weak_reg
+      replace_na(list(policy = "weak_reg")) %>%
       select(GCAM_region_ID, policy)
 
     # Group SSPs by whether we process them the same
@@ -238,14 +239,6 @@ module_emissions_L161.nonghg_en_ssp_R_S_T_Y <- function(command, ...) {
       lapply(function(df) {
         select(df, -SSP_group)
       })
-
-    # Region 25 is dropped in old ds because it does not have policy (elec_coal data does not exist)
-    # Unsure of what correct behavior is. See issue #596
-    if(OLD_DATA_SYSTEM_BEHAVIOR) {
-      out_df[["2"]] <- out_df[["2"]] %>%
-        filter(GCAM_region_ID != 25)
-    }
-    # ===================================================
 
     # Produce outputs
     out_df[["1&5"]] %>%

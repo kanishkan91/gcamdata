@@ -10,7 +10,7 @@
 #' original data system was \code{LA115.RooftopPV.R} (gcam-usa level1).
 #' @details Prepare resource curves for rooftop PV (commercial and residential combined).
 #' @importFrom assertthat assert_that
-#' @importFrom dplyr filter mutate select
+#' @importFrom dplyr arrange bind_rows filter group_by mutate select summarise
 #' @importFrom tidyr gather spread
 #' @author ST September 2017
 module_gcam.usa_LA115.RooftopPV <- function(command, ...) {
@@ -137,26 +137,6 @@ module_gcam.usa_LA115.RooftopPV <- function(command, ...) {
       select(state, minimum) %>%
       rename(b_exp = minimum) ->
       L115.pv_error_min_b
-
-    if(OLD_DATA_SYSTEM_BEHAVIOR) {
-      # these are very minor adjustments to replicate legacy output. The issue stems from...
-      # ...the ordering of the generation where there are two or more equal price points in...
-      # ...a given state. This causes a minor change to cumulative sum and thus the smoothed...
-      # ...supply curve parameter b_exp. The differences are small (within 0.1), but need manipulating...
-      # ...to pass the old_new test.
-      L115.pv_error_min_b$b_exp[L115.pv_error_min_b$state=="AK"] <- 11.563
-      L115.pv_error_min_b$b_exp[L115.pv_error_min_b$state=="AL"] <- 13.913
-      L115.pv_error_min_b$b_exp[L115.pv_error_min_b$state=="AZ"] <- 2.085
-      L115.pv_error_min_b$b_exp[L115.pv_error_min_b$state=="CA"] <- 6.902
-      L115.pv_error_min_b$b_exp[L115.pv_error_min_b$state=="CO"] <- 4.847
-      L115.pv_error_min_b$b_exp[L115.pv_error_min_b$state=="DC"] <- 12.618
-      L115.pv_error_min_b$b_exp[L115.pv_error_min_b$state=="FL"] <- 10.969
-      L115.pv_error_min_b$b_exp[L115.pv_error_min_b$state=="HI"] <- 6.619
-      L115.pv_error_min_b$b_exp[L115.pv_error_min_b$state=="MA"] <- 13.145
-      L115.pv_error_min_b$b_exp[L115.pv_error_min_b$state=="MS"] <- 12.644
-      L115.pv_error_min_b$b_exp[L115.pv_error_min_b$state=="UT"] <- 8.598
-      L115.pv_error_min_b$b_exp[L115.pv_error_min_b$state=="VT"] <- 14.158
-    }
 
     # Join up mid_price up with error value to get table of parameters with all states
     L115.pv_midPrice %>%

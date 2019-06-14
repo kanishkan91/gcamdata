@@ -40,7 +40,7 @@ check_chunk_outputs <- function(chunk, chunk_data, chunk_inputs, promised_output
       assert_that(! FLAG_XML %in% obj_flags, msg = obj)
 
       # Make sure objects have required attributes
-      for(at in c(ATTR_TITLE, ATTR_UNITS, ATTR_COMMENTS, ATTR_LEGACY_NAME)) {
+      for(at in c(ATTR_TITLE, ATTR_UNITS, ATTR_COMMENTS)) {
         if(is.null(attr(chunk_data[[obj]], at))) {
           warning("No '", at, "' attached to ", obj, " - chunk ", chunk)
         }
@@ -75,7 +75,7 @@ check_chunk_outputs <- function(chunk, chunk_data, chunk_inputs, promised_output
 
   # Every input should be a precursor for something
   if(!all(chunk_inputs %in% pc_all)) {
-    message("Inputs ", paste(setdiff(chunk_inputs, pc_all), collapse = ", "),
+    message("Inputs ", paste(dplyr::setdiff(chunk_inputs, pc_all), collapse = ", "),
             " don't appear as precursors for any outputs - chunk ", chunk)
   }
 
@@ -135,6 +135,7 @@ tibbelize_outputs <- function(chunk_data, chunk_name) {
 #' @param return_data_map_only Return only the precursor information? (logical) This overrides
 #' the other \code{return_*} parameters above
 #' @param write_outputs Write all chunk outputs to disk?
+#' @param write_xml Write XML Batch chunk outputs to disk?
 #' @param outdir Location to write output data (ignored if \code{write_outputs} is \code{FALSE})
 #' @param xmldir Location to write output XML (ignored if \code{write_outputs} is \code{FALSE})
 #' @return A list of all built data (or a data map tibble if requested).
@@ -144,7 +145,7 @@ tibbelize_outputs <- function(chunk_data, chunk_name) {
 #' the relevant wiki page at \url{ https://github.com/bpbond/gcamdata/wiki/Driver}.
 #' @importFrom magrittr "%>%"
 #' @importFrom assertthat assert_that
-#' @importFrom dplyr filter mutate select
+#' @importFrom dplyr bind_rows filter group_by inner_join select summarise
 #' @export
 #' @author BBL
 driver <- function(all_data = empty_data(),
@@ -155,6 +156,7 @@ driver <- function(all_data = empty_data(),
                                              outputs_of(return_outputs_of)),
                    return_data_map_only = FALSE,
                    write_outputs = !return_data_map_only,
+                   write_xml = write_outputs,
                    outdir = OUTPUTS_DIR, xmldir = XML_DIR,
                    quiet = FALSE) {
 
@@ -179,6 +181,7 @@ driver <- function(all_data = empty_data(),
   assert_that(is.null(return_data_names) | is.character(return_data_names))
   assert_that(is.logical(return_data_map_only))
   assert_that(is.logical(write_outputs))
+  assert_that(is.logical(write_xml))
   assert_that(is.logical(quiet))
 
   if(!quiet) cat("GCAM Data System v", as.character(utils::packageVersion("gcamdata")), "\n", sep = "")
@@ -193,7 +196,7 @@ driver <- function(all_data = empty_data(),
   # Keep track of chunk inputs for later pruning
   chunkinputs %>%
     group_by(input) %>%
-    summarise(n = n()) ->
+    summarise(n = dplyr::n()) ->
     chunk_input_counts
   cic <- chunk_input_counts$n
   names(cic) <- chunk_input_counts$input
@@ -221,23 +224,35 @@ driver <- function(all_data = empty_data(),
     }
 
     if(!quiet) cat(nrow(unfound_inputs), "chunk data input(s) not accounted for\n")
-    csv_data <- load_csv_files(unfound_inputs$input, unfound_inputs$optional, quiet = TRUE)
-    all_data <- add_data(csv_data, all_data)
   }
 
   # Extract metadata from the input data; we'll add output metadata as we run
   metadata_info <- list()
-  if(return_data_map_only) {
-    if(!quiet) cat("Extracting metadata from inputs...\n")
-    metadata_info <- list(INPUT = tibbelize_outputs(all_data, chunk_name = "INPUT"))
-  }
 
   # Initialize some stuff before we start to run the chunks
-  chunks_to_run <- chunklist$name
-  removed_count <- 0
-  if(write_outputs) {
-    save_chunkdata(empty_data(), create_dirs = TRUE, outputs_dir = outdir, xml_dir = xmldir) # clear directories
+  if(!missing(stop_before) || !missing(stop_after)) {
+    if(!missing(stop_after)) {
+      run_chunks <- stop_after
+    } else {
+      run_chunks <- stop_before
+    }
+    # calc min list
+    name.x <- name.y <- NULL  # silence package check note
+    verts <- inner_join(bind_rows(chunkoutputs,
+                                  tibble(name = unfound_inputs$input,
+                                         output = unfound_inputs$input,
+                                         to_xml = FALSE)),
+                        chunkinputs, by=c("output" = "input")) %>%
+      select(name.x, name.y) %>%
+      unique()
+
+    chunks_to_run <- dstrace_chunks(run_chunks, verts)
   }
+  else {
+    chunks_to_run <- c(unfound_inputs$input, chunklist$name)
+  }
+  removed_count <- 0
+  save_chunkdata(empty_data(), create_dirs = TRUE, write_outputs=write_outputs, write_xml = write_xml, outputs_dir = outdir, xml_dir = xmldir) # clear directories
 
   while(length(chunks_to_run)) {
     nchunks <- length(chunks_to_run)
@@ -252,12 +267,23 @@ driver <- function(all_data = empty_data(),
         next  # chunk's required inputs are not all available
       }
 
-      if(!quiet) print(chunk)
-
       if(chunk %in% stop_before) {
         chunks_to_run <- character(0)
         break
       }
+
+      if(chunk %in% unfound_inputs$input) {
+        unfound_chunk = unfound_inputs[unfound_inputs$input == chunk, ]
+        chunk_data <- load_csv_files(unfound_chunk$input, unfound_chunk$optional, quiet = TRUE)
+        po <- chunk
+        if(return_data_map_only) {
+          if(!quiet) cat("Extracting metadata from inputs...\n")
+          metadata_info[[chunk]] <- tibbelize_outputs(chunk_data, chunk_name = "INPUT")
+        }
+      }
+      else {
+
+      if(!quiet) print(chunk)
 
       # Order chunk to build its data
       time1 <- Sys.time()
@@ -274,6 +300,7 @@ driver <- function(all_data = empty_data(),
       if(return_data_map_only) {
         metadata_info[[chunk]] <- tibbelize_outputs(chunk_data, chunk)
       }
+      }
 
       # Add this chunk's data to the global data store
       all_data <- add_data(chunk_data, all_data)
@@ -282,7 +309,7 @@ driver <- function(all_data = empty_data(),
       # they can be immediately written out and removed
       prunelist <- !po %in% names(cic) & !po %in% return_data_names
       if(any(prunelist)) {
-        if(write_outputs) save_chunkdata(all_data[po[prunelist]], outputs_dir = outdir, xml_dir = xmldir)
+        save_chunkdata(all_data[po[prunelist]], write_outputs = write_outputs, write_xml = write_xml, outputs_dir = outdir, xml_dir = xmldir)
         all_data <- remove_data(po[prunelist], all_data)
         removed_count <- removed_count + length(po[prunelist])
       }
@@ -291,7 +318,7 @@ driver <- function(all_data = empty_data(),
       cic[input_names] <- cic[input_names] - 1
       # ...and remove if not going to be used again, and not requested for return
       which_zero <- which(cic[input_names] == 0 & !input_names %in% return_data_names)
-      if(write_outputs) save_chunkdata(all_data[names(which_zero)], outputs_dir = outdir, xml_dir = xmldir)
+      save_chunkdata(all_data[names(which_zero)], write_outputs = write_outputs, write_xml = write_xml, outputs_dir = outdir, xml_dir = xmldir)
       all_data <- remove_data(names(which_zero), all_data)
       removed_count <- removed_count + length(which_zero)
 
@@ -312,10 +339,8 @@ driver <- function(all_data = empty_data(),
 
   # Finish up: write outputs, determine return data format
 
-  if(write_outputs) {
-    if(!quiet) cat("Writing chunk data...\n")
-    save_chunkdata(all_data, outputs_dir = outdir, xml_dir = xmldir)
-  }
+  if(!quiet && (write_outputs || write_xml)) cat("Writing chunk data...\n")
+  save_chunkdata(all_data, write_outputs = write_outputs, write_xml = write_xml, outputs_dir = outdir, xml_dir = xmldir)
 
   if(return_data_map_only) {
     if(!quiet) cat("Returning data map.\n")
@@ -347,7 +372,8 @@ warn_data_injects <- function() {
     co
 
   # Look for TEMP_DATA_INJECT pattern in the chunk input list
-  ci[grep(TEMP_DATA_INJECT, ci$input),] %>%
+  ci %>%
+    filter(grepl(TEMP_DATA_INJECT, input)) %>%
     mutate(base_input = basename(input)) %>%
     # Look for any tdi inputs that appear in the enabled chunks' outputs
     filter(base_input %in% co$output) %>%

@@ -10,7 +10,7 @@
 #' original data system was \code{L104.bcoc_en_USA_S_T_Y.R} (emissions level1).
 #' @details 1990 USA BC and OC emissions are divided by year 2000 USA energy use to generate emission factors for GCAM aggregate sectors
 #' @importFrom assertthat assert_that
-#' @importFrom dplyr filter mutate select
+#' @importFrom dplyr filter funs group_by left_join mutate select summarize summarize_if
 #' @importFrom tidyr gather spread
 #' @author SJS May 2017
 module_emissions_L104.bcoc_en_USA_S_T_Y <- function(command, ...) {
@@ -99,19 +99,6 @@ module_emissions_L104.bcoc_en_USA_S_T_Y <- function(command, ...) {
       ungroup() ->
       GCAM_energy_2000_byBCOC_agg
 
-    # The old data system energy aggregation has several errors:
-    # 1) Air and rail energy are far too high (likely included service in addition to energy)
-    # 2) Road and ship energy consumption are zero.
-    # In order to replicate old behavior, these erroneous values are inserted manually here
-    if(OLD_DATA_SYSTEM_BEHAVIOR) {
-      GCAM_energy_2000_byBCOC_agg %>%
-        mutate(Fuel_Use = if_else(BCOC_agg_sector == "trn_rail" & technology == "refined liquids", 8.74835393158511, Fuel_Use)) %>%
-        mutate(Fuel_Use = if_else(BCOC_agg_sector == "trn_air" & technology == "refined liquids", 17.3290691678305, Fuel_Use)) %>%
-        mutate(Fuel_Use = if_else(BCOC_agg_sector == "trn_road" & technology == "refined liquids", 0.0, Fuel_Use)) %>%
-        mutate(Fuel_Use = if_else(BCOC_agg_sector == "trn_ship" & technology == "refined liquids", 0.0, Fuel_Use)) ->
-        GCAM_energy_2000_byBCOC_agg
-    }
-
     # Other issues relating to energy data used here
     # A) Electricity natural gas consumption only includes steam/CT but not CC
     # consumption in both old and new versions. This is not a substantial issue here since BC/OC
@@ -136,12 +123,12 @@ module_emissions_L104.bcoc_en_USA_S_T_Y <- function(command, ...) {
     USA_bcoc_in_tg_1990 %>%
       # Still don't expect a complete match, so use left_join
       left_join(GCAM_energy_2000_byBCOC_agg,by = c("BCOC_agg_sector", "technology")) %>%
-      mutate(bc_em_factor = BC_em / Fuel_Use) %>%
-      mutate(oc_em_factor = OC_em / Fuel_Use) %>%
+      mutate(bc_em_factor = BC_em / Fuel_Use,
+             oc_em_factor = OC_em / Fuel_Use) %>%
       select(-BC_em, -OC_em, -Fuel_Use) %>%
       rename(sector = BCOC_agg_sector) %>%
       replace_na(list(bc_em_factor = 0, oc_em_factor = 0)) %>%
-      mutate_all(funs(replace(., is.infinite(.), 0))) ->
+      dplyr::mutate_all(funs(replace(., is.infinite(.), 0))) ->
       USA_BCOC_Emission_Factors
 
     # ===================================================

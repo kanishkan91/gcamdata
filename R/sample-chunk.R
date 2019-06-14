@@ -10,7 +10,7 @@
 #' @return Depends on \code{command}.
 #' @author Author name
 #' @importFrom tibble tibble
-#' @import dplyr
+#' @importFrom dplyr filter mutate select
 module_sample_sample <- function(command, ...) {
   if(command == driver.DECLARE_OUTPUTS) {
     return(c("first_output",
@@ -35,7 +35,7 @@ module_sample_sample <- function(command, ...) {
       add_title("First output") %>%
       add_units("None") %>%
       add_precursors("common/iso_GCAM_regID", "L200.ModelTime") %>%
-      add_flags(FLAG_LONG_YEAR_FORM, FLAG_NO_XYEAR, FLAG_NO_TEST, FLAG_NO_OUTPUT) %>%
+      add_flags(FLAG_NO_TEST, FLAG_NO_OUTPUT) %>%
       add_legacy_name("<none>") %>%
       add_comments("Sample chunk output") ->
       first_output
@@ -44,7 +44,7 @@ module_sample_sample <- function(command, ...) {
       add_title("Second output") %>%
       add_units("None") %>%
       add_precursors("common/iso_GCAM_regID", "L200.ModelTime") %>%
-      add_flags(FLAG_LONG_YEAR_FORM, FLAG_NO_XYEAR, FLAG_NO_TEST, FLAG_NO_OUTPUT) %>%
+      add_flags(FLAG_NO_TEST, FLAG_NO_OUTPUT) %>%
       add_legacy_name("<none>") %>%
       add_comments("Sample chunk output") ->
       second_output

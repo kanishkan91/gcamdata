@@ -16,7 +16,7 @@
 #' they are available; if not, this chunk reads in a pre-generated \code{L100.IEA_en_bal_ctry_hist}
 #' file and returns that. (In other words, our output is an optional input.)
 #' @importFrom assertthat assert_that
-#' @importFrom dplyr filter mutate select
+#' @importFrom dplyr bind_rows distinct filter group_by mutate one_of select semi_join summarise
 #' @importFrom tidyr gather spread
 #' @author BBL May 2017
 module_energy_LA100.IEA_downscale_ctry <- function(command, ...) {
@@ -58,9 +58,9 @@ module_energy_LA100.IEA_downscale_ctry <- function(command, ...) {
       cols <- c("COUNTRY", "FLOW", "PRODUCT", hy)
       bind_rows(en_OECD[cols], en_nonOECD[cols]) %>%
         # rename fuels with inconsistent naming between the two databases
-        mutate(PRODUCT = replace(PRODUCT, PRODUCT == "Natural Gas", "Natural gas")) %>%
-        mutate(PRODUCT = replace(PRODUCT, PRODUCT == "Other Kerosene", "Other kerosene")) %>%
-        mutate(PRODUCT = replace(PRODUCT, PRODUCT == "Total", "Total of all energy sources")) ->
+        mutate(PRODUCT = replace(PRODUCT, PRODUCT == "Natural Gas", "Natural gas"),
+               PRODUCT = replace(PRODUCT, PRODUCT == "Other Kerosene", "Other kerosene"),
+               PRODUCT = replace(PRODUCT, PRODUCT == "Total", "Total of all energy sources")) ->
         L100.IEAfull
 
       # UP FRONT ADJUSTMENTS (UFA) original lines 42-67
@@ -296,8 +296,7 @@ module_energy_LA100.IEA_downscale_ctry <- function(command, ...) {
                 L100.Others_ctry_bal) %>%
         add_comments("Combine OECD and non-OECD data; perform upfront adjustments for other Africa, Turkey, and South Africa;") %>%
         add_comments("split out and handle the 1990 split of Yugoslavia and USSR; use population to downscale IEA composite regions") %>%
-        add_comments("to individual countries; filter out countries without data in any year.") %>%
-        add_flags(FLAG_PROTECT_FLOAT) ->
+        add_comments("to individual countries; filter out countries without data in any year.") ->
         L100.IEA_en_bal_ctry_hist
     } else {
       # raw IEA datasets not available, so return NA

@@ -16,7 +16,7 @@
 #' The corresponding file in the original data system was \code{L210.resources.R} (energy level2).
 #' @details Resource market information, prices, TechChange parameters, supply curves, and environmental costs.
 #' @importFrom assertthat assert_that
-#' @importFrom dplyr filter mutate select
+#' @importFrom dplyr bind_rows distinct filter if_else mutate select
 #' @importFrom tidyr gather spread
 #' @author RLH November 2017
 module_energy_L210.resources <- function(command, ...) {
@@ -139,19 +139,19 @@ module_energy_L210.resources <- function(command, ...) {
     # L210.DepRsrcPrice: historical prices for depletable resources
     L210.DepRsrcPrice <- L210.rsrc_info %>%
       filter(resource_type == "depresource",
-             year %in% BASE_YEARS) %>%
+             year %in% MODEL_BASE_YEARS) %>%
       select(region, depresource = resource, year, price = value)
 
     # L210.RenewRsrcPrice: historical prices for renewable resources
     L210.RenewRsrcPrice <- L210.rsrc_info %>%
       filter(resource_type == "renewresource",
-             year %in% BASE_YEARS) %>%
+             year %in% MODEL_BASE_YEARS) %>%
       select(region, renewresource = resource, year, price = value)
 
     # L210.UnlimitRsrcPrice: prices for unlimited resources
     L210.UnlimitRsrcPrice <- L210.rsrc_info %>%
       filter(resource_type == "unlimited-resource",
-             year %in% BASE_YEARS) %>%
+             year %in% MODEL_BASE_YEARS) %>%
       select(region, unlimited.resource = resource, year, price = value)
 
     # B. Tech change
@@ -220,7 +220,7 @@ module_energy_L210.resources <- function(command, ...) {
     # Calibrating this in the "traded unconventional oil" sectors allows for shareweight interpolation.
     L210.DepRsrcCalProd <- L111.Prod_EJ_R_F_Yh %>%
       filter(fuel != "unconventional oil",
-             year %in% BASE_YEARS) %>%
+             year %in% MODEL_BASE_YEARS) %>%
       # Add region name
       left_join_error_no_match(GCAM_region_names, by = "GCAM_region_ID") %>%
       # Add subresource
@@ -251,7 +251,7 @@ module_energy_L210.resources <- function(command, ...) {
              mid.price = round(mid.price, energy.DIGITS_MID_PRICE),
              curve.exponent = round(curve.exponent, energy.DIGITS_CURVE_EXPONENT),
              gdpSupplyElast = round(gdpSupplyElast, energy.DIGITS_GDP_SUPPLY_ELAST),
-             year.fillout = min(BASE_YEARS)) %>%
+             year.fillout = min(MODEL_BASE_YEARS)) %>%
       select(region, renewresource = resource, smooth.renewable.subresource = subresource, year.fillout, maxSubResource, mid.price, curve.exponent, gdpSupplyElast)
 
     # L210.SmthRenewRsrcCurves_wind: supply curves of wind resources
@@ -261,7 +261,7 @@ module_energy_L210.resources <- function(command, ...) {
       mutate(maxSubResource = round(maxSubResource, energy.DIGITS_MAX_SUB_RESOURCE),
              mid.price = round(mid.price, energy.DIGITS_MID_PRICE),
              curve.exponent = round(curve.exponent, energy.DIGITS_CURVE_EXPONENT),
-             year.fillout = min(BASE_YEARS)) %>%
+             year.fillout = min(MODEL_BASE_YEARS)) %>%
       select(region, renewresource = resource, smooth.renewable.subresource = subresource, year.fillout, maxSubResource, mid.price, curve.exponent)
 
     # L210.SmthRenewRsrcCurves_roofPV: supply curves of rooftop PV resources
@@ -272,7 +272,7 @@ module_energy_L210.resources <- function(command, ...) {
              mid.price = round(mid.price, energy.DIGITS_MID_PRICE),
              curve.exponent = round(curve.exponent, energy.DIGITS_CURVE_EXPONENT),
              gdpSupplyElast = round(gdpSupplyElast, energy.DIGITS_GDP_SUPPLY_ELAST),
-             year.fillout = min(BASE_YEARS)) %>%
+             year.fillout = min(MODEL_BASE_YEARS)) %>%
       select(region, renewresource = resource, smooth.renewable.subresource = subresource, year.fillout, maxSubResource, mid.price, curve.exponent, gdpSupplyElast)
 
     # L210.GrdRenewRsrcCurves_geo: graded supply curves of geothermal (hydrothermal) resources
@@ -283,20 +283,11 @@ module_energy_L210.resources <- function(command, ...) {
       select(region, renewresource = resource, sub.renewable.resource = subresource, grade, available, extractioncost)
 
     # L210.GrdRenewRsrcMax_geo: default max sub resource of geothermal (hydrothermal) resources
-    # The old code is "subset( L210.GrdRenewRsrcCurves_geo, grade = unique( grade )[1] )"
-    # It appears they meant to filter to "grade 1" only, however there is only one equals sign, so no subsetting occurs
-    if(OLD_DATA_SYSTEM_BEHAVIOR) {
-      L210.GrdRenewRsrcMax_geo <- L210.GrdRenewRsrcCurves_geo %>%
-        mutate(year.fillout = min(BASE_YEARS),
-               maxSubResource = 1) %>%
-        select(LEVEL2_DATA_NAMES[["maxSubResource"]])
-    } else {
-      L210.GrdRenewRsrcMax_geo <- L210.GrdRenewRsrcCurves_geo %>%
-        filter(grade == "grade 1") %>%
-        mutate(year.fillout = min(BASE_YEARS),
-               maxSubResource = 1) %>%
-        select(LEVEL2_DATA_NAMES[["maxSubResource"]])
-    }
+    L210.GrdRenewRsrcMax_geo <- L210.GrdRenewRsrcCurves_geo %>%
+      filter(grade == "grade 1") %>%
+      mutate(year.fillout = min(MODEL_BASE_YEARS),
+             maxSubResource = 1) %>%
+      select(LEVEL2_DATA_NAMES[["maxSubResource"]])
 
 
     # L210.GrdRenewRsrcCurves_EGS: graded supply curves of geothermal (EGS) resources
@@ -307,20 +298,11 @@ module_energy_L210.resources <- function(command, ...) {
       select(region, renewresource = resource, sub.renewable.resource = subresource, grade, available, extractioncost)
 
     # L210.GrdRenewRsrcMax_EGS: default max sub resource of EGS resources
-    # The old code is "subset( L210.GrdRenewRsrcCurves_EGS, grade = unique( grade )[1] )"
-    # It appears they meant to filter to "grade 1" only, however there is only one equals sign, so no subsetting occurs
-    if(OLD_DATA_SYSTEM_BEHAVIOR) {
-      L210.GrdRenewRsrcMax_EGS <- L210.GrdRenewRsrcCurves_EGS %>%
-        mutate(year.fillout = min(BASE_YEARS),
-               maxSubResource = 1) %>%
-        select(LEVEL2_DATA_NAMES[["maxSubResource"]])
-    } else {
-      L210.GrdRenewRsrcMax_EGS <- L210.GrdRenewRsrcCurves_EGS %>%
-        filter(grade == "grade 1") %>%
-        mutate(year.fillout = min(BASE_YEARS),
-               maxSubResource = 1) %>%
-        select(LEVEL2_DATA_NAMES[["maxSubResource"]])
-    }
+    L210.GrdRenewRsrcMax_EGS <- L210.GrdRenewRsrcCurves_EGS %>%
+      filter(grade == "grade 1") %>%
+      mutate(year.fillout = min(MODEL_BASE_YEARS),
+             maxSubResource = 1) %>%
+      select(LEVEL2_DATA_NAMES[["maxSubResource"]])
 
     # L210.GrdRenewRsrcCurves_tradbio: graded supply curves of traditional biomass resources
     L210.GrdRenewRsrcCurves_tradbio <- L117.RsrcCurves_EJ_R_tradbio %>%
@@ -332,7 +314,7 @@ module_energy_L210.resources <- function(command, ...) {
     # L210.GrdRenewRsrcMax_tradbio: default max sub resource of tradbio resources
     L210.GrdRenewRsrcMax_tradbio <- L210.GrdRenewRsrcCurves_tradbio %>%
       filter(grade == "grade 1") %>%
-      mutate(year.fillout = min(BASE_YEARS),
+      mutate(year.fillout = min(MODEL_BASE_YEARS),
              maxSubResource = 1) %>%
       select(LEVEL2_DATA_NAMES[["maxSubResource"]])
 
@@ -361,7 +343,7 @@ module_energy_L210.resources <- function(command, ...) {
     # SSP4 is handled differently because of its region groupings - we will handle its precursors separately below
     L210.pcgdp_max_base_year <- L102.pcgdp_thous90USD_Scen_R_Y %>%
       filter(scenario == "SSP4",
-             year == max(BASE_YEARS)) %>%
+             year == max(MODEL_BASE_YEARS)) %>%
       # Add region name
       left_join_error_no_match(GCAM_region_names, by = "GCAM_region_ID") %>%
       mutate(value = value * gdp_deflator(2010, 1990))

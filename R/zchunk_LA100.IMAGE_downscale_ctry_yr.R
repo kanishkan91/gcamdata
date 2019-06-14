@@ -10,7 +10,7 @@
 #' original data system was \code{LA100.IMAGE_downscale_ctry_yr.R} (aglu level1).
 #' @details Each IMAGE table is extrapolated to all AGLU historical years and then downscaled from IMAGE region to all AGLU countries.
 #' @importFrom assertthat assert_that
-#' @importFrom dplyr filter mutate select
+#' @importFrom dplyr arrange bind_rows filter if_else group_by left_join mutate select
 #' @importFrom tidyr gather spread
 #' @author BBL June 2017
 module_aglu_LA100.IMAGE_downscale_ctry_yr <- function(command, ...) {
@@ -55,6 +55,8 @@ module_aglu_LA100.IMAGE_downscale_ctry_yr <- function(command, ...) {
       arrange(year) %>%
       group_by(commodity, system, input, IMAGE_region_ID) %>%
       mutate(value = approx_fun(year, value, rule = 2)) %>%
+      # Re-set negative values in the feedfrac table to 0
+      mutate(value = if_else(value < 0, 0, value)) %>%
       ungroup ->
       L100.IMAGE_an_Feedfrac_Rimg_C_Sys_Fd_Y
 
@@ -65,9 +67,6 @@ module_aglu_LA100.IMAGE_downscale_ctry_yr <- function(command, ...) {
       arrange(year) %>%
       group_by(commodity, system, IMAGE_region_ID) %>%
       mutate(value = approx_fun(year, value, rule = 2)) %>%
-      ungroup %>%
-      # Re-set negative values in the feedfrac table to 0
-      mutate(value = if_else(value < 0, 0, value)) %>%
       ungroup ->
       L100.IMAGE_an_FeedIO_Rimg_C_Sys_Y
 

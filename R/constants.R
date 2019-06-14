@@ -3,7 +3,6 @@
 OUTPUTS_DIR              <- "outputs/"
 XML_DIR                  <- "xml/"
 COMMENT_CHAR             <- "#"
-OLD_DATA_SYSTEM_BEHAVIOR <- TRUE
 UNDER_TIMESHIFT          <- FALSE
 YEAR_PATTERN             <- "^(1|2)[0-9]{3}$"   # a 1 or 2 followed by three digits, and nothing else
 LOGIT_TYPE_COLNAME        <- "logit.type"        # will be removed by test code before old-new comparison
@@ -12,32 +11,34 @@ LOGIT_TYPE_COLNAME        <- "logit.type"        # will be removed by test code 
 # Flags ======================================================================
 
 FLAG_INPUT_DATA      <- "FLAG_INPUT_DATA"       # input data, don't output
-FLAG_LONG_YEAR_FORM  <- "FLAG_LONG_YEAR_FORM"   # 'year' column but original data are wide
 FLAG_NO_OUTPUT       <- "FLAG_NO_OUTPUT"        # don't output
 FLAG_NO_TEST         <- "FLAG_NO_TEST"          # don't test
-FLAG_NO_XYEAR        <- "FLAG_NO_XYEAR"         # year names don't have X's in front
 FLAG_PROTECT_FLOAT   <- "FLAG_PROTECT_FLOAT"    # protect float columns from readr bug
 FLAG_SUM_TEST        <- "FLAG_SUM_TEST"         # use less-restrictive sum test
 FLAG_XML             <- "FLAG_XML"              # xml data
-FLAG_YEAR_COL_XYEARS <- "FLAG_YEAR_COL_XYEARS"  # 'year' column without X's in front
 
 
 # Time constants ======================================================================
 
-BASE_YEARS              <- c(1975, 1990, 2005, 2010)
-FUTURE_YEARS            <- seq(2015, 2100, 5)
-HISTORICAL_YEARS        <- 1971:2010
-MODEL_YEARS             <- c(BASE_YEARS, FUTURE_YEARS)
+HISTORICAL_YEARS        <- 1971:2010                            # historical years for data processing
+FUTURE_YEARS            <- 2011:2100                            # future years for data processing
+MODEL_BASE_YEARS        <- c(1975, 1990, 2005, 2010)            # calibrated periods in the model
+MODEL_FUTURE_YEARS      <- seq(2015, 2100, 5)                   # future (i.e., not calibrated) time periods in the model
+MODEL_YEARS             <- c(MODEL_BASE_YEARS, MODEL_FUTURE_YEARS)
 
 
 # GCAM constants ======================================================================
 
 gcam.USA_CODE            <- 1
+gcam.USA_REGION          <- "USA"
 gcam.WESTERN_EUROPE_CODE <- 13
 gcam.LOGIT_TYPES         <- c("relative-cost-logit", "absolute-cost-logit")
 gcam.EQUIV_TABLE         <- "EQUIV_TABLE"
 gcam.IND_ENERGY_USE      <- c("biomass", "coal", "gas", "refined liquids")  # GCAM industrial energy use fuels
 GCAM_REGION_ID      <- "GCAM_region_ID"
+# The default market price GCAM will use to start solving from if it has no other info
+# If users do not have an estimate for a starting price this is a safe one to set
+gcam.DEFAULT_PRICE <- 1.0
 
 
 # Driver constants ======================================================================
@@ -105,17 +106,17 @@ CONV_DAYS_YEAR  <- 1 / 365.25
 CONV_YEAR_HOURS <- 24 * 365.25
 
 # Energy
-CONV_BBLD_EJYR <- 6.119 * 365.25 * 1e-3 # billion barrels a day to EJ per year
 CONV_BTU_KJ    <- 1.0551
-CONV_GJ_EJ  <- 1e-9
-CONV_EJ_GJ  <- 1 / CONV_GJ_EJ
-CONV_GWH_EJ <- 3.6e-6
+CONV_GJ_EJ     <- 1e-9
+CONV_EJ_GJ     <- 1 / CONV_GJ_EJ
+CONV_GWH_EJ    <- 3.6e-6
 CONV_KBTU_EJ   <- 1.0551e-12            # KiloBTU to EJ
-CONV_KWH_GJ <- 3.6e-3
+CONV_KWH_GJ    <- 3.6e-3
+CONV_MBLD_EJYR <- 6.119 * 365.25 * 1e-3 # million barrels a day to EJ per year
 CONV_MJ_BTU    <- 947.777
-CONV_MWH_GJ <- 3.6                      # Megawatt hours to Gigajoules
+CONV_MWH_GJ    <- 3.6                   # Megawatt hours to Gigajoules
 CONV_TBTU_EJ   <- 0.0010551             # TeraBTU to EJ
-CONV_TWH_EJ <- 3.6e-3
+CONV_TWH_EJ    <- 3.6e-3
 CONV_EJ_MTCE <- 34.12                   #EJ to Metric tons of coal equivalent
 
 # Other
@@ -146,6 +147,7 @@ aglu.MODEL_COST_YEARS       <- 2008:2011
 aglu.MODEL_PRICE_YEARS      <- 2008:2011
 aglu.PREAGLU_YEARS          <- c(1700, 1750,1800, 1850, 1900, 1950)          # Cropland cover years prior to first aglu historical year to use in climate model component
 aglu.SPEC_AG_PROD_YEARS     <- seq(max(aglu.AGLU_HISTORICAL_YEARS), 2050, by = 5) # Specified ag productivity years, KD i think this might need a better comment
+aglu.SSP_DEMAND_YEARS       <- seq(2010, 2100, 5) # food demand in the SSPs is calculated at 5-yr intervals
 
 aglu.LAND_TOLERANCE    <- 0.005
 aglu.MIN_PROFIT_MARGIN <- 0.15  # Unitless and is used to ensure that Agricultural Costs (units 1975USD/kg) don't lead to profits below a minimum profit margin.
@@ -244,6 +246,18 @@ aglu.AVG_WOOD_DENSITY_KGM3 <- 500 # In kg per m3
 # Carbon content of wood is about 50 percent across species
 aglu.AVG_WOOD_DENSITY_KGCM3 <- 250 # In kg carbon per m3
 
+# Carbon content adjustments from unmanaged to managed
+# conversion factor from unmanaged forest to managed forest, where the former is
+# understood to be forest not in logging rotation, and the latter is forest in
+# logging rotation. The average vegetation biomass of the logged forest is assumed
+# to be 50% of that of the unlogged forest (integrated over the rotation period).
+# Using 50% under the assumption that the veg biomass of the logged forest over the
+# rotation period can be approximated by a triangle.
+aglu.CVEG_MULT_UNMGDFOR_MGDFOR <- 0.5
+aglu.CSOIL_MULT_UNMGDFOR_MGDFOR <- 0.87      #source: Guo and Gifford 2002; https://doi.org/10.1046/j.1354-1013.2002.00486.x
+aglu.CVEG_MULT_UNMGDPAST_MGDPAST <- 0.5
+aglu.CSOIL_MULT_UNMGDPAST_MGDPAST <- 0.9     # stay conservative here b/c no data source
+
 # Average Agriculture Density kg/m^3 for mass conversion
 # Source: http://www.engineeringtoolbox.com/wood-density-d_40.html
 aglu.AVG_AG_DENSITY <- 1
@@ -322,7 +336,7 @@ aglu.DIGITS_WATER_CONTENT <- 2
 # Time
 energy.CDIAC_CO2_HISTORICAL_YEARS <- HISTORICAL_YEARS[HISTORICAL_YEARS < 2010] # At present the CO2 emissions inventory from CDIAC stops at 2009
 energy.CLIMATE_NORMAL_YEARS       <- 1981:2000
-energy.SATIATION_YEAR             <- 2010
+energy.SATIATION_YEAR             <- max(MODEL_BASE_YEARS) # Needs to be the last model base year to avoid the risk of the model crashing
 energy.UCD_EN_YEAR                <- 2005        # UCD transporctation year to use to compute shares for allocation of energy to mode/technology/fuel within category/fuel
 energy.WIND.BASE.COST.YEAR        <- 2005        # Base cost year for wind, used in capacity factor calculations
 
@@ -346,6 +360,10 @@ energy.HEAT_PRICE <- 3.2
 energy.GAS_PRICE  <- 2
 
 energy.CO2.STORAGE.MARKET <- "carbon-storage"
+
+# the year for the ratio of industrial energy:feedstocks convergence in all regions
+# in the old data system this was intended to be 2150 but was actually 2100
+energy.INDCOEF_CONVERGENCE_YR <- 2100
 
 energy.CEMENT_CCS_COST_2000USDTCO2 <- 50 # Starting point of supply curve in Mahasenan et al 2003; come from ENERGY_ASSUMPTIONS/A_ccs_data.R
 energy.CO2_STORAGE_COST_1990_USDTC <- 42 # From GCAM 1.0 inputs; come from ENERGY_ASSUMPTIONS/A_ccs_data.R
@@ -405,66 +423,6 @@ energy.OILFRACT_ELEC            <- 1.0 # Fraction of liquids for feedstocks that
 energy.OILFRACT_FEEDSTOCKS      <- 0.8 # Fraction of liquids for oil electricity that must come from oil
 
 
-# Conversion constants ======================================================================
-# The naming convention is CONV_(FROM-UNIT)_(TO-UNIT).
-
-# Numeric (unitless)
-CONV_BIL_MIL <- 1000
-CONV_MIL_BIL <- 1 / CONV_BIL_MIL
-CONV_BIL_THOUS <- 1e6
-CONV_THOUS_BIL <- 1 / CONV_BIL_THOUS
-CONV_MIL_THOUS <- 1000
-CONV_ONES_THOUS <- 0.001
-
-# Mass
-CONV_TON_MEGATON <- 1e-6
-CONV_T_KG <- 1e3
-CONV_KG_T <- 1 / CONV_T_KG
-CONV_T_METRIC_SHORT <- 1000 / 908  # Ratio between metric ton and short ton
-CONV_HA_BM2 <- 1e-5
-CONV_HA_M2 <- 10000
-CONV_THA_KGM2 <- 0.1   # tons C/ha -> kg C/m2
-CONV_GG_TG <- 0.001 # gigagrams to tegagrams
-CONV_TST_TG <- 0.000907 # thousand short tons to Tg
-CONV_KG_TO_TG <- 1e-9
-CONV_KT_MT <- 0.001 # kt to Mt
-CONV_T_MT <- 1e-6 # t to Mt
-CONV_G_KG <- 1e-3 # kilograms to grams
-CONV_NH3_N <- 14/17 # Nitrogen to Ammonia
-CONV_KBBL_BBL <- 1000 # thousand barrels to barrels
-CONV_BBL_TONNE_RFO <- 1 / 6.66 # barrels to tons residual fuel oil
-CONV_TONNE_GJ_RFO <- 40.87 # tons to GJ residual fuel oil
-CONV_BBL_TONNE_DISTILLATE <- 1 / 7.46 # barrels to tons distillate
-CONV_TONNE_GJ_DISTILLATE <- 42.91 # tons to GJ distillate
-
-# Time
-CONV_YEAR_HOURS <- 24 * 365.25
-CONV_DAYS_YEAR <- 1 / 365.25
-
-# Energy
-CONV_MWH_GJ <- 3.6 # Megawatt hours to Gigajoules
-CONV_GWH_EJ <- 3.6e-6
-CONV_TWH_EJ <- 3.6e-3
-CONV_KWH_GJ <- 3.6e-3
-CONV_GJ_EJ <- 1e-9
-CONV_EJ_GJ <- 1 / CONV_GJ_EJ
-CONV_MBLD_EJYR <- 6.119 * 365.25 * 1e-3 # million barrels a day to EJ per year
-CONV_KBTU_EJ <- 1.0551e-12 # KiloBTU to EJ
-CONV_TBTU_EJ <- 0.0010551 # TeraBTU to EJ
-CONV_MJ_BTU <- 947.777
-CONV_BTU_KJ <- 1.0551
-
-# Other
-CONV_MCAL_PCAL <- 1e-9
-CONV_M3_BM3 <- 1e-09 # Cubic meters (m3) to billion cubic meters (bm3)
-CONV_MILLION_M3_KM3 <- 1e-03
-CONV_M2_ACR <- 0.0002471058
-CONV_HA_M2 <- 1e4 # ha to m2
-CONV_BM2_M2 <- 1e9
-CONV_MILFT2_M2 <- 92900 # Million square feet to square meters
-CONV_FT2_M2 <- 0.0929 # Square feet to square meters
-
-
 # Socioeconomics constants ======================================================================
 
 # Population years - note that these sequences shouldn't have any overlap,
@@ -508,29 +466,40 @@ water.MAPPED_WATER_TYPES_SHORT            <- c("C", "W")
 names(water.MAPPED_WATER_TYPES_SHORT)     <- water.MAPPED_WATER_TYPES
 water.WATER_UNITS_PRICE                   <- "1975$/m^3"
 water.WATER_UNITS_QUANTITY                <- "km^3"
+water.DIGITS_MUNI_WATER                   <- 4
 
+# GCAM intermediate sectors for which Vassolo + Doll assessed manufacturing water demands. In the paper, they indicate
+# chemicals, pulp and paper, pig iron, sugar, beer, cloth, cement, and crude steel. some industrial mfg does take place
+# in energy transformation (charcoal, pig iron), so we'll leave that one in.
+water.GCAM_MFG_SECTORS_VASSOLO <- c("in_industry_general", "net_industry_energy transformation")
+
+# GCAM intermediate fuels used for extrapolating manufacturing water use from one base year to all base years.
+water.GCAM_MFG_FUELS_EFW <- c("electricity")
+
+# the maximum portion of aquastat industrial (mfg + elec) water withdrawals that is allowed to be assigned to
+# manufacturing. Used to set a cap on derived manufacturing water withdrawals
+water.MAX_MFG_FRAC_OF_IND <- 0.85
 
 # Emissions constants ======================================================================
 
 # Time
 emissions.CTRL_BASE_YEAR          <- 1975                # Year to read in pollution controls
 emissions.DEFOREST_COEF_YEARS     <- c(2000, 2005)
-emissions.EDGAR_F_GASSES_YEARS    <- 1970:2000
 emissions.EDGAR_HISTORICAL        <- 1971:2008
 emissions.EDGAR_YEARS             <- 1971:2008
 emissions.EDGAR_YEARS_PLUS        <- 1970:2008
 emissions.EPA_HISTORICAL_YEARS    <- 1971:2002
 emissions.EPA_MACC_YEAR           <- 2030                # Must be either 2020 or 2030
-emissions.FINAL_EMISS_YEAR        <- min(max(BASE_YEARS), 2005)
+emissions.FINAL_EMISS_YEAR        <- min(max(MODEL_BASE_YEARS), 2005)
 emissions.GAINS_BASE_YEAR         <- 2005
 emissions.GAINS_YEARS             <- c(2010, 2020, 2030)
 emissions.GHG_CONTROL_READIN_YEAR <- 1975
-emissions.HFC_MODEL_BASE_YEARS    <- c(1975, 1990, 2005, 2010)
+emissions.HFC_MODEL_BASE_YEARS    <- MODEL_YEARS[ MODEL_YEARS <= 2010] # We don't want this to change in timeshift
 emissions.INVENTORY_MATCH_YEAR    <- 2009                # Select year from which to calculate fuel emissions coefficients (2009 is currently the most recent)
-emissions.MODEL_BASE_YEARS        <- BASE_YEARS[BASE_YEARS < 2008]
+emissions.MODEL_BASE_YEARS        <- MODEL_BASE_YEARS[MODEL_BASE_YEARS < 2008]
 emissions.NH3_EXTRA_YEARS         <- 1971:1989
 emissions.NH3_HISTORICAL_YEARS    <- 1990:2002
-emissions.SSP_FUTURE_YEARS        <- c(2010, FUTURE_YEARS)
+emissions.SSP_FUTURE_YEARS        <- MODEL_YEARS[MODEL_YEARS %in% 2010:2100]
 
 # Other emissions constants
 emissions.CONV_C_CO2    <- 44 / 12 # Convert Carbon to CO2
@@ -539,7 +508,7 @@ emissions.TST_TO_TG     <- 0.000907 # Thousand short tons to Tg
 
 emissions.COAL_SO2_THRESHOLD <- 0.1   # Tg/EJ (here referring to Tg SO2 per EJ of coal electricity)
 emissions.LOW_PCGDP          <- 2.75  # thousand 1990 USD
-emissions.MAC_TAXES          <- c(0, 5, 10, 15, 32, 66, 129, 243, 486, 1093, 2064, 4857, 7285, 12141) # Range of costs in 1990 USD
+emissions.MAC_TAXES          <- c(0, 2, 4, 6, 13, 27, 53, 100, 200, 450, 850, 2000, 3000, 5000) # Range of MAC curve costs to keep to read into GCAM; they are in EPA's units (2010USD_tCO2e)
 emissions.MAC_MARKET         <- "CO2" # Default market that MAC curves will look for
 
 emissions.AGR_SECTORS        <- c("rice", "fertilizer", "soil")
@@ -574,7 +543,7 @@ gcamusa.STATES <- c("AK", "AL", "AR", "AZ", "CA", "CO", "CT", "DC", "DE", "FL", 
 gcamusa.DEFAULT_COEFFICIENT <- 1
 gcamusa.DEFAULT_LOGIT_TYPE  <- NA  # default logit type
 gcamusa.DEFAULT_LOGITEXP    <- -3
-gcamusa.DEFAULT_MARKET      <- "USA"
+gcamusa.DEFAULT_MARKET      <- gcam.USA_REGION
 gcamusa.DEFAULT_SHAREWEIGHT <- 1
 
 # Logit exponent regulating competition between different grid regions in USA electricity market
@@ -642,15 +611,17 @@ gcamchina.TIBET_NATIONAL_ENERGY_SHARE <- 0.01
 # Time constants
 gcamchina.ELEC_HISTORICAL_YEARS <- c(HISTORICAL_YEARS, 2011, 2012)
 
-
-# Time shift conditions ======================================================================
-# Uncomment these lines to run under 'timeshift' conditions
-# HISTORICAL_YEARS <- 1971:2005       # normally 1971:2010
-# FUTURE_YEARS <- seq(2010, 2100, 5)  # normally seq(2015, 2100, 5)
-# BASE_YEARS <- c(1975, 1990, 2005)   # normally (1975, 1990, 2005, 2010)
-# MODEL_YEARS <- c(BASE_YEARS, FUTURE_YEARS)
-
 # GCAM-China provinces
 gcamchina.PROVINCES <- c("AH", "BJ", "CQ", "FJ", "GD", "GS", "GX", "GZ", "HA", "HB", "HE", "HI", "HL", "HN", "JL", "JS", "JX", "LN", "NM", "NX", "QH", "SC", "SD", "SH",
                          "SN", "SX", "TJ", "XJ", "XZ", "YN", "ZJ")
 
+# Resources that will be modeled at the province level
+gcamchina.PROVINCE_RENEWABLE_RESOURCES <- c("distributed_solar", "geothermal", "onshore wind resource")
+gcamchina.PROVINCE_UNLIMITED_RESOURCES <- c("global solar resource", "limestone")
+
+# Time shift conditions ======================================================================
+# Uncomment these lines to run under 'timeshift' conditions
+# HISTORICAL_YEARS <- 1971:2005       # normally 1971:2010
+# MODEL_FUTURE_YEARS <- seq(2010, 2100, 5)  # normally seq(2015, 2100, 5)
+# MODEL_BASE_YEARS <- c(1975, 1990, 2005)   # normally (1975, 1990, 2005, 2010)
+# MODEL_YEARS <- c(MODEL_BASE_YEARS, MODEL_FUTURE_YEARS)
